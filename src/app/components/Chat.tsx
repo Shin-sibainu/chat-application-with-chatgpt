@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { db } from "../../../firebase";
 import {
   collection,
@@ -9,10 +9,14 @@ import {
   query,
   onSnapshot,
   addDoc,
+  serverTimestamp,
+  orderBy,
 } from "firebase/firestore";
 import axios from "axios";
 import OpenAI from "openai";
 import { useRouter } from "next/navigation";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTruckLoading, faSpinner } from "@fortawesome/free-solid-svg-icons";
 
 type ChatProps = {
   selectedRoom: string | null;
@@ -29,10 +33,22 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     dangerouslyAllowBrowser: true,
   });
 
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const router = useRouter();
+  const scrollDiv = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollDiv.current) {
+      const element = scrollDiv.current;
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [messages]);
 
   //各Roomにおけるメッセージの取得
   useEffect(() => {
@@ -40,15 +56,12 @@ const Chat = ({ selectedRoom }: ChatProps) => {
       if (selectedRoom) {
         const roomDocRef = doc(db, "room", selectedRoom);
         const messagesCollectionRef = collection(roomDocRef, "messages");
-        // const messagesSnapshot = await getDocs(messagesCollectionRef);
-        // const fetchMessages = messagesSnapshot.docs.map(
-        //   (doc) => doc.data() as Message //データの形状を変更する
-        // );
 
         // setMessages(fetchMessages);
         // console.log(fetchMessages);
 
-        const unsubscribe = onSnapshot(messagesCollectionRef, (snapshot) => {
+        const q = query(messagesCollectionRef, orderBy("createdAt"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
           const newMessages = snapshot.docs.map((doc) => doc.data() as Message);
           setMessages(newMessages);
         });
@@ -70,6 +83,7 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     const messageData = {
       text: inputMessage,
       sender: "user",
+      createdAt: serverTimestamp(),
     };
 
     // メッセージを Firestore に保存
@@ -79,14 +93,18 @@ const Chat = ({ selectedRoom }: ChatProps) => {
 
     // GPT-3.5 API を呼び出す（例）
     const prompt = inputMessage; // ここを自分の需要に合わせて調整
+    // 入力フィールドをクリア
+    setInputMessage("");
+
+    setIsLoading(true);
+
     const gpt3Response = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: "gpt-3.5-turbo",
     });
 
-    // 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
+    setIsLoading(false);
 
-    // const botResponse = gpt3Response.data.choices[0].text.trim();
     const botResponse = gpt3Response.choices[0].message.content;
     console.log(botResponse);
 
@@ -94,32 +112,35 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     await addDoc(messagesCollectionRef, {
       text: botResponse,
       sender: "bot",
+      createdAt: serverTimestamp(),
     });
-
-    // 入力フィールドをクリア
-    setInputMessage("");
   };
 
   return (
     <div className="bg-gray-500 h-full p-4 flex flex-col">
       <h1 className="text-2xl font-semibold mb-4">Room 1</h1>
-      <div className="flex-grow overflow-y-auto mb-4">
+      <div className="flex-grow overflow-y-auto mb-4" ref={scrollDiv}>
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`${
-              message.sender === "user" ? "text-right" : "text-left"
-            }`}
+            className={message.sender === "user" ? "text-right" : "text-left"}
           >
             <div
-              className={`${
-                message.sender === "user" ? "bg-blue-500" : "bg-green-500"
-              } inline-block rounded px-4 py-2 mb-2`}
+              className={
+                message.sender === "user"
+                  ? "bg-blue-500 inline-block rounded px-4 py-2 mb-2"
+                  : "bg-green-500 inline-block rounded px-4 py-2 mb-2"
+              }
             >
               <p className="text-white">{message.text}</p>
             </div>
           </div>
         ))}
+        {isLoading && (
+          <div className="fa-2x">
+            <FontAwesomeIcon icon={faSpinner} spin className="text-white" />
+          </div>
+        )}
       </div>
       <div className="flex-shrink-0 relative">
         <input
