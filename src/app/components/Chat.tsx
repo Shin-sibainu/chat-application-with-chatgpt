@@ -11,12 +11,14 @@ import {
   addDoc,
   serverTimestamp,
   orderBy,
+  Timestamp,
 } from "firebase/firestore";
 import axios from "axios";
 import OpenAI from "openai";
 import { useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTruckLoading, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { ChatCompletionCreateParams } from "openai/resources/chat/index.mjs";
 
 type ChatProps = {
   selectedRoom: string | null;
@@ -25,6 +27,12 @@ type ChatProps = {
 type Message = {
   text: string;
   sender: string;
+  craetedAt: Timestamp;
+};
+
+type MyCompletionMessage = {
+  role: "user" | "assistant";
+  content: string;
 };
 
 const Chat = ({ selectedRoom }: ChatProps) => {
@@ -77,7 +85,6 @@ const Chat = ({ selectedRoom }: ChatProps) => {
 
   //メッセージの送信と追加
   const sendMessage = async () => {
-    console.log("send");
     if (!inputMessage.trim()) return;
 
     const messageData = {
@@ -91,7 +98,17 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     const messagesCollectionRef = collection(roomDocRef, "messages");
     await addDoc(messagesCollectionRef, messageData);
 
-    // GPT-3.5 API を呼び出す（例）
+    // 最後のN個の交換を取得（例では最後の5個）
+    const lastNMessages: MyCompletionMessage[] = messages
+      .slice(-5)
+      .map((message) => ({
+        role: message.sender === "user" ? "user" : "assistant", // この行を修正
+        content: message.text,
+      }));
+
+    // 新しいユーザーの入力を追加
+    lastNMessages.push({ role: "user", content: inputMessage });
+
     const prompt = inputMessage; // ここを自分の需要に合わせて調整
     // 入力フィールドをクリア
     setInputMessage("");
@@ -99,7 +116,8 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     setIsLoading(true);
 
     const gpt3Response = await openai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
+      // messages: [{ role: "user", content: prompt }],
+      messages: lastNMessages,
       model: "gpt-3.5-turbo",
     });
 
