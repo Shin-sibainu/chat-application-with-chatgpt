@@ -11,6 +11,8 @@ import {
   addDoc,
 } from "firebase/firestore";
 import axios from "axios";
+import OpenAI from "openai";
+import { useRouter } from "next/navigation";
 
 type ChatProps = {
   selectedRoom: string | null;
@@ -22,8 +24,15 @@ type Message = {
 };
 
 const Chat = ({ selectedRoom }: ChatProps) => {
+  const openai = new OpenAI({
+    apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true,
+  });
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
+
+  const router = useRouter();
 
   //各Roomにおけるメッセージの取得
   useEffect(() => {
@@ -31,14 +40,22 @@ const Chat = ({ selectedRoom }: ChatProps) => {
       if (selectedRoom) {
         const roomDocRef = doc(db, "room", selectedRoom);
         const messagesCollectionRef = collection(roomDocRef, "messages");
-        const messagesSnapshot = await getDocs(messagesCollectionRef);
-        const fetchMessages = messagesSnapshot.docs.map(
-          (doc) => doc.data() as Message //データの形状を変更する
-        );
+        // const messagesSnapshot = await getDocs(messagesCollectionRef);
+        // const fetchMessages = messagesSnapshot.docs.map(
+        //   (doc) => doc.data() as Message //データの形状を変更する
+        // );
 
-        setMessages(fetchMessages);
-
+        // setMessages(fetchMessages);
         // console.log(fetchMessages);
+
+        const unsubscribe = onSnapshot(messagesCollectionRef, (snapshot) => {
+          const newMessages = snapshot.docs.map((doc) => doc.data() as Message);
+          setMessages(newMessages);
+        });
+
+        return () => {
+          unsubscribe();
+        };
       }
     };
 
@@ -60,35 +77,24 @@ const Chat = ({ selectedRoom }: ChatProps) => {
     const messagesCollectionRef = collection(roomDocRef, "messages");
     await addDoc(messagesCollectionRef, messageData);
 
-    console.log(messageData);
-    console.log(messagesCollectionRef);
-
     // GPT-3.5 API を呼び出す（例）
-    const apiUrl =
-      "https://api.openai.com/v1/engines/davinci-codex/completions";
     const prompt = inputMessage; // ここを自分の需要に合わせて調整
-    const gpt3Response = await axios.post(
-      apiUrl,
-      {
-        prompt,
-        max_tokens: 100,
-      },
-      {
-        headers: {
-          Authorization: `Bearer YOUR_OPENAI_API_KEY`,
-        },
-      }
-    );
+    const gpt3Response = await openai.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "gpt-3.5-turbo",
+    });
 
-    const botResponse = gpt3Response.data.choices[0].text.trim();
+    // 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
+
+    // const botResponse = gpt3Response.data.choices[0].text.trim();
+    const botResponse = gpt3Response.choices[0].message.content;
+    console.log(botResponse);
 
     // ボットの返信を Firestore に保存
     await addDoc(messagesCollectionRef, {
       text: botResponse,
       sender: "bot",
     });
-
-    console.log(botResponse);
 
     // 入力フィールドをクリア
     setInputMessage("");
@@ -121,6 +127,12 @@ const Chat = ({ selectedRoom }: ChatProps) => {
           placeholder="Send a message"
           className="border-2 rounded w-full p-2 pr-10 focus:outline-none"
           onChange={(e) => setInputMessage(e.target.value)}
+          value={inputMessage}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              sendMessage();
+            }
+          }}
         />
         <button
           type="submit"
