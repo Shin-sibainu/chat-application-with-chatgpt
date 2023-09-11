@@ -12,6 +12,8 @@ import {
   serverTimestamp,
   orderBy,
   Timestamp,
+  getDoc,
+  limit,
 } from "firebase/firestore";
 import axios from "axios";
 import OpenAI from "openai";
@@ -22,6 +24,7 @@ import { ChatCompletionCreateParams } from "openai/resources/chat/index.mjs";
 
 type ChatProps = {
   selectedRoom: string | null;
+  setSelectedRoom: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
 type Message = {
@@ -35,7 +38,7 @@ type MyCompletionMessage = {
   content: string;
 };
 
-const Chat = ({ selectedRoom }: ChatProps) => {
+const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
   const openai = new OpenAI({
     apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
     dangerouslyAllowBrowser: true,
@@ -45,6 +48,7 @@ const Chat = ({ selectedRoom }: ChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [roomName, setRoomName] = useState<string>("");
 
   const scrollDiv = useRef<HTMLDivElement>(null);
 
@@ -80,8 +84,44 @@ const Chat = ({ selectedRoom }: ChatProps) => {
       }
     };
 
+    const fetchRoomName = async () => {
+      if (selectedRoom) {
+        const roomDocRef = doc(db, "room", selectedRoom);
+        const docSnap = await getDoc(roomDocRef);
+
+        if (docSnap.exists()) {
+          setRoomName(docSnap.data().name); // ドキュメントの 'name' フィールドを取得
+        } else {
+          console.log("No such document!");
+        }
+      }
+    };
+
     fetchMessages();
+    fetchRoomName();
   }, [selectedRoom]);
+
+  // 最後に作成されたルームを取得
+  useEffect(() => {
+    const fetchLastCreatedRoom = async () => {
+      const roomsCollectionRef = collection(db, "room");
+      const q = query(
+        roomsCollectionRef,
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+      const querySnapshot = await getDocs(q);
+
+      querySnapshot.forEach((doc) => {
+        // 最後に作成されたルームのIDを設定
+        setSelectedRoom(doc.id);
+        // ルーム名も設定
+        setRoomName(doc.data().name);
+      });
+    };
+
+    fetchLastCreatedRoom();
+  }, []);
 
   //メッセージの送信と追加
   const sendMessage = async () => {
@@ -136,7 +176,7 @@ const Chat = ({ selectedRoom }: ChatProps) => {
 
   return (
     <div className="bg-gray-500 h-full p-4 flex flex-col">
-      <h1 className="text-2xl font-semibold mb-4">Room 1</h1>
+      <h1 className="text-2xl font-semibold mb-4">{roomName}</h1>
       <div className="flex-grow overflow-y-auto mb-4" ref={scrollDiv}>
         {messages.map((message, index) => (
           <div

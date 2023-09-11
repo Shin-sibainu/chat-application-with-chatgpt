@@ -9,7 +9,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 
 type SidebarProps = {
   setSelectedRoom: React.Dispatch<React.SetStateAction<string | null>>;
@@ -23,6 +23,7 @@ type Room = {
 
 const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -72,17 +73,22 @@ const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
     }
   };
 
+  const handleLogout = () => {
+    auth.signOut();
+  };
+
   return (
-    <div className="bg-custom-blue h-full overflow-y-auto px-5">
-      <div
-        onClick={addNewRoom}
-        className="cursor-pointer flex justify-evenly items-center border mt-2 rounded-md hover:bg-blue-800 duration-150"
-      >
-        <span className="p-4 text-2xl text-white">+</span>
-        <h1 className="text-xl font-semibold p-4">New Chat</h1>
-      </div>
-      <ul>
-        {/* <li
+    <div className="bg-custom-blue h-full overflow-y-auto px-5 flex flex-col">
+      <div className="flex-grow">
+        <div
+          onClick={addNewRoom}
+          className="cursor-pointer flex justify-evenly items-center border mt-2 rounded-md hover:bg-blue-800 duration-150"
+        >
+          <span className="p-4 text-2xl text-white">+</span>
+          <h1 className="text-xl font-semibold p-4">New Chat</h1>
+        </div>
+        <ul>
+          {/* <li
           onClick={() => handleRoomClick("Room1")}
           className="cursor-pointer border-b p-4 text-slate-100"
         >
@@ -100,16 +106,24 @@ const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
         >
           Room 3
         </li> */}
-        {rooms.map((room) => (
-          <li
-            key={room.id}
-            className="cursor-pointer border-b p-4 text-slate-100 hover:bg-slate-700 duration-150"
-            onClick={() => selectRoom(room.id)}
-          >
-            {room.name}
-          </li>
-        ))}
-      </ul>
+          {rooms.map((room) => (
+            <li
+              key={room.id}
+              className="cursor-pointer border-b p-4 text-slate-100 hover:bg-slate-700 duration-150"
+              onClick={() => selectRoom(room.id)}
+            >
+              {room.name}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div
+        onClick={handleLogout}
+        className="fa-x mb-2 cursor-pointer p-4 text-slate-100 hover:bg-slate-700 duration-150"
+      >
+        <i className="fa fa-sign-out mr-2"></i>
+        <span className="text-base">ログアウト</span>
+      </div>
     </div>
   );
 };

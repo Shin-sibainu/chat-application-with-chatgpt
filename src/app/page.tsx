@@ -16,7 +16,7 @@ export default function Home() {
           <Sidebar setSelectedRoom={setSelectedRoom} />
         </div>
         <div className="flex-grow w-4/5 h-full bg-blue-200">
-          <Chat selectedRoom={selectedRoom} />
+          <Chat selectedRoom={selectedRoom} setSelectedRoom={setSelectedRoom} />
         </div>
       </div>
     </div>
