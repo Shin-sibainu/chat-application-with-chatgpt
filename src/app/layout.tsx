@@ -3,6 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "font-awesome/css/font-awesome.min.css";
+import { AppProvider } from "@/context/AppContext";
 
 export const metadata: Metadata = {
   title: "ChatGPT App",
@@ -18,7 +19,7 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         {/* <Header /> */}
-        {children}
+        <AppProvider>{children}</AppProvider>
       </body>
     </html>
   );

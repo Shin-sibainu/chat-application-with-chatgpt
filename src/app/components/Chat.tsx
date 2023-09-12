@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import {
   collection,
   doc,
@@ -14,6 +14,7 @@ import {
   Timestamp,
   getDoc,
   limit,
+  where,
 } from "firebase/firestore";
 import axios from "axios";
 import OpenAI from "openai";
@@ -51,6 +52,9 @@ const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
   const [roomName, setRoomName] = useState<string>("");
 
   const scrollDiv = useRef<HTMLDivElement>(null);
+
+  const user = auth.currentUser;
+  const userId = user ? user.uid : null;
 
   useEffect(() => {
     if (scrollDiv.current) {
@@ -107,7 +111,8 @@ const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
       const roomsCollectionRef = collection(db, "room");
       const q = query(
         roomsCollectionRef,
-        orderBy("createdAt", "desc"),
+        where("userId", "==", userId),
+        orderBy("createdAt"),
         limit(1)
       );
       const querySnapshot = await getDocs(q);
@@ -164,7 +169,7 @@ const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
     setIsLoading(false);
 
     const botResponse = gpt3Response.choices[0].message.content;
-    console.log(botResponse);
+    // console.log(botResponse);
 
     // ボットの返信を Firestore に保存
     await addDoc(messagesCollectionRef, {

@@ -7,9 +7,12 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { auth, db } from "../../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { useAppContext } from "@/context/AppContext";
 
 type SidebarProps = {
   setSelectedRoom: React.Dispatch<React.SetStateAction<string | null>>;
@@ -21,40 +24,58 @@ type Room = {
   createdAt: Timestamp;
 };
 
-const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
+const Sidebar = () => {
+  const { user, userId, setSelectedRoom } = useAppContext();
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // const user = auth.currentUser;
+  // const userId = user ? user.uid : null;
+  // console.log(userId);
 
   useEffect(() => {
-    const fetchRooms = async () => {
-      // const roomRef = collection(db, "room");
-      // const roomSnapshot = await getDocs(roomRef);
-      // const roomData = roomSnapshot.docs.map((doc) => ({
-      //   id: doc.id,
-      //   name: doc.data().name,
-      // }));
-
-      // setRooms(roomData);
-
-      const roomCollectionRef = collection(db, "room");
-      const q = query(roomCollectionRef, orderBy("createdAt"));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const newRooms = snapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-            } as Room)
+    if (userId) {
+      // userId が存在する場合のみクエリを実行
+      const fetchRooms = async () => {
+        const roomCollectionRef = collection(db, "room");
+        const q = query(
+          roomCollectionRef,
+          where("userId", "==", userId),
+          orderBy("createdAt")
         );
-        setRooms(newRooms);
-      });
 
-      return () => {
-        unsubscribe();
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const newRooms = snapshot.docs.map(
+            (doc) =>
+              ({
+                id: doc.id,
+                ...doc.data(),
+              } as Room)
+          );
+          setRooms(newRooms);
+        });
+
+        return () => {
+          unsubscribe();
+        };
       };
-    };
 
-    fetchRooms();
+      fetchRooms();
+    }
+  }, [userId]); // userId が更新されたときにこの useEffect が再実行される
+
+  useEffect(() => {
+    //ユーザーの取得
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserEmail(user.email);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const selectRoom = async (roomId: string) => {
@@ -69,6 +90,7 @@ const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
       await addDoc(newRoomRef, {
         name: roomName,
         createdAt: serverTimestamp(),
+        userId: userId,
       });
     }
   };
@@ -117,6 +139,9 @@ const Sidebar = ({ setSelectedRoom }: SidebarProps) => {
           ))}
         </ul>
       </div>
+      {userEmail && (
+        <div className="fa-x mb-2 p-4 text-slate-100 text-lg font-medium">{`${userEmail}`}</div>
+      )}
       <div
         onClick={handleLogout}
         className="fa-x mb-2 cursor-pointer p-4 text-slate-100 hover:bg-slate-700 duration-150"
