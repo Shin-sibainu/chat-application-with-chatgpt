@@ -22,11 +22,7 @@ import { useRouter } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTruckLoading, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { ChatCompletionCreateParams } from "openai/resources/chat/index.mjs";
-
-type ChatProps = {
-  selectedRoom: string | null;
-  setSelectedRoom: React.Dispatch<React.SetStateAction<string | null>>;
-};
+import { useAppContext } from "@/context/AppContext";
 
 type Message = {
   text: string;
@@ -39,11 +35,13 @@ type MyCompletionMessage = {
   content: string;
 };
 
-const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
+const Chat = () => {
   const openai = new OpenAI({
     apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
     dangerouslyAllowBrowser: true,
   });
+
+  const { user, userId, selectedRoom, setSelectedRoom } = useAppContext();
 
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,9 +50,6 @@ const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
   const [roomName, setRoomName] = useState<string>("");
 
   const scrollDiv = useRef<HTMLDivElement>(null);
-
-  const user = auth.currentUser;
-  const userId = user ? user.uid : null;
 
   useEffect(() => {
     if (scrollDiv.current) {
@@ -108,25 +103,33 @@ const Chat = ({ selectedRoom, setSelectedRoom }: ChatProps) => {
   // 最後に作成されたルームを取得
   useEffect(() => {
     const fetchLastCreatedRoom = async () => {
-      const roomsCollectionRef = collection(db, "room");
-      const q = query(
-        roomsCollectionRef,
-        where("userId", "==", userId),
-        orderBy("createdAt"),
-        limit(1)
-      );
-      const querySnapshot = await getDocs(q);
+      try {
+        const roomsCollectionRef = collection(db, "room");
+        const q = query(
+          roomsCollectionRef,
+          where("userId", "==", userId),
+          orderBy("createdAt"),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
 
-      querySnapshot.forEach((doc) => {
-        // 最後に作成されたルームのIDを設定
-        setSelectedRoom(doc.id);
-        // ルーム名も設定
-        setRoomName(doc.data().name);
-      });
+        if (querySnapshot.empty) {
+          console.log("No matching documents.");
+          return;
+        }
+
+        querySnapshot.forEach((doc) => {
+          console.log(doc.id);
+          setSelectedRoom(doc.id);
+          setRoomName(doc.data().name);
+        });
+      } catch (error) {
+        console.log("Error getting document:", error);
+      }
     };
 
     fetchLastCreatedRoom();
-  }, []);
+  }, [userId]);
 
   //メッセージの送信と追加
   const sendMessage = async () => {

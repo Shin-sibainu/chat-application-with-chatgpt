@@ -33,7 +33,7 @@ export default function Home() {
           <Sidebar />
         </div>
         <div className="flex-grow w-4/5 h-full bg-blue-200">
-          <Chat selectedRoom={selectedRoom} setSelectedRoom={setSelectedRoom} />
+          <Chat />
         </div>
       </div>
     </div>
